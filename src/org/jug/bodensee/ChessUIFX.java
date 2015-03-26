@@ -19,18 +19,23 @@
  */
 package org.jug.bodensee;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.IntStream;
 import javafx.animation.RotateTransition;
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.scene.Scene;
+import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.TextArea;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.shape.Rectangle;
@@ -86,7 +91,15 @@ public class ChessUIFX extends Application {
     }
 
     @Override
-    public void start(Stage primaryStage) {
+    public void start(Stage primaryStage) throws IOException {
+        
+        final UCIController uciController = new UCIController("/Users/sven/Downloads/stockfish-6-mac/Mac/stockfish-6-64");        
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            @Override
+            public void run() {
+                uciController.stop();
+            }
+        });
         stage = primaryStage;
         stage.initStyle(StageStyle.DECORATED);
         double width = 80f;
@@ -95,9 +108,19 @@ public class ChessUIFX extends Application {
         Pane chessboardContainer = new Pane();
         chessboardContainer.getStyleClass().add("board");
         root.setCenter(chessboardContainer);
-        Text fontTest = new Text("ponmn");
-        fontTest.getStyleClass().add("piece");
-        root.setBottom(fontTest);
+        Button b = new Button("Siggi-Go!)");
+        b.setOnAction(a -> {
+            uciController.startNewGame();
+            uciController.go();
+        });
+        TextArea textArea = new TextArea();
+        textArea.setMinHeight(150);
+        textArea.setMinWidth(250);
+        uciController.lastLineFromEngineProperty().addListener((ov, old, newValue) -> {
+            Platform.runLater(() -> textArea.appendText(newValue + "\n"));
+        });
+        HBox box = new HBox(textArea, b);
+        root.setBottom(box);
         Scene scene = new Scene(root, width * 8, heigth * 8);
         chessboardContainer.getStylesheets().add(this.getClass().getResource("chess.css").toExternalForm());
 
@@ -161,6 +184,7 @@ public class ChessUIFX extends Application {
         primaryStage.setTitle("JUG Bodensee ChessUIFX");
         primaryStage.setScene(scene);
         primaryStage.show();
+        uciController.init();        
     }
 
     /**
