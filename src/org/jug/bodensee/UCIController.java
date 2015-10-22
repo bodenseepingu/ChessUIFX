@@ -73,8 +73,9 @@ public class UCIController {
         return lastLineFromEngine.getReadOnlyProperty();
     }
     
-    public void startNewGame() {
+    public void startNewGame(int skill) {
         send("ucinewgame");
+        send("setoption name skill level value "+skill);
     }
 
     public void go() {
@@ -91,10 +92,23 @@ public class UCIController {
         }
     }
 
+    
+    
     public void stop() {
         if (null != process) {
             process.destroyForcibly();
         }
+    }
+
+    void positionMoves(String fenString, String bw, String castlingPossibilities, 
+            String enpassant, int halfeMoveNr, int moveNr, String startEndField) {
+        String command = "position fen ";
+        command = command + fenString + " " + bw + " " + castlingPossibilities + 
+                " " + enpassant + " " + halfeMoveNr + " " + moveNr;
+                /* + " moves " +
+                startEndField;*/
+        send(command);
+        send("go movetime 1000");
     }
 
 }

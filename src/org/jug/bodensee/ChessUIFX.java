@@ -20,26 +20,26 @@
 package org.jug.bodensee;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.stream.IntStream;
+import java.util.Scanner;
 import javafx.animation.RotateTransition;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.Slider;
 import javafx.scene.control.TextArea;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.scene.shape.Rectangle;
-import javafx.scene.text.Text;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
@@ -51,49 +51,22 @@ import org.scenicview.ScenicView;
  */
 public class ChessUIFX extends Application {
 
+    private boolean humanIsWhite = false;
+    private String humanColor = "b";
+    private String compColor = "w";
     private int style = 0;
     private Stage stage;
 
-    private final Map<Integer, String> figures = new HashMap<Integer, String>();
-
-//&#9812; = ♔
-//&#9813; = ♕
-//&#9814; = ♖
-//&#9815; = ♗
-//&#9816; = ♘
-//&#9817; = ♙
-//&#9818; = ♚
-//&#9819; = ♛
-//&#9820; = ♜
-//&#9821; = ♝
-//&#9822; = ♞
-//&#9823; = ♟
-    public ChessUIFX() {
-        figures.put(56, "♖");
-        figures.put(57, "♘");
-        figures.put(58, "♗");
-        figures.put(59, "♕");
-        figures.put(60, "♔");
-        figures.put(61, "♗");
-        figures.put(62, "♘");
-        figures.put(63, "♖");
-        IntStream.range(48, 56).forEach(i -> figures.put(i, "♙"));  //weisser Bauer
-
-        IntStream.range(8, 16).forEach(i -> figures.put(i, "♟")); //schwarzer Bauer
-        figures.put(0, "♜");
-        figures.put(1, "♞");
-        figures.put(2, "♝");
-        figures.put(3, "♛");
-        figures.put(4, "♚");
-        figures.put(5, "♝");
-        figures.put(6, "♞");
-        figures.put(7, "♜");
-    }
+    private ChessModel myChessModell;
+    private String lastClickedFigure = "11";
+    private String lastClickedField = "11";
+    private int computerSkill = 1;
 
     @Override
     public void start(Stage primaryStage) throws IOException {
-        
-        final UCIController uciController = new UCIController("/Users/sven/Downloads/stockfish-6-mac/Mac/stockfish-6-64");        
+
+        myChessModell = new ChessModel();
+        final UCIController uciController = new UCIController("stockfish");
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
             public void run() {
@@ -108,28 +81,127 @@ public class ChessUIFX extends Application {
         Pane chessboardContainer = new Pane();
         chessboardContainer.getStyleClass().add("board");
         root.setCenter(chessboardContainer);
-        Button b = new Button("Siggi-Go!)");
-        b.setOnAction(a -> {
-            uciController.startNewGame();
-            uciController.go();
-        });
         TextArea textArea = new TextArea();
-        textArea.setMinHeight(150);
-        textArea.setMinWidth(250);
-        uciController.lastLineFromEngineProperty().addListener((ov, old, newValue) -> {
-            Platform.runLater(() -> textArea.appendText(newValue + "\n"));
+        textArea.setMinHeight(60);
+        textArea.setMinWidth(140);
+        CheckBox c = new CheckBox("Mensch spielt weiß");
+        c.setOnAction(a -> {
+            CheckBox chk = (CheckBox) a.getSource();
+            System.out.println("Mensch spielt weiß ist: " + chk.isSelected());
+            humanIsWhite = chk.isSelected();
+            if (humanIsWhite) {
+                humanColor = "w";
+                compColor = "b";
+            } else {
+                humanColor = "b";
+                compColor = "w";
+            }
         });
-        HBox box = new HBox(textArea, b);
-        root.setBottom(box);
-        Scene scene = new Scene(root, width * 8, heigth * 8);
-        chessboardContainer.getStylesheets().add(this.getClass().getResource("chess.css").toExternalForm());
+        Slider slider = new Slider(1, 20, 1);
+        slider.setValue(1);
+        slider.setMajorTickUnit(1);
+        slider.setMinorTickCount(0);
+        slider.setShowTickMarks(true);
+        slider.setShowTickLabels(true);
+        slider.setSnapToTicks(true);
+        slider.valueProperty().addListener((observable, oldValue, newValue) -> {
+            System.out.println("Slider Value Changed (newValue: " + newValue.intValue() + ")");
+            computerSkill = newValue.intValue();
+        });
+        Button b = new Button("Neues Spiel");
+        b.setOnAction(a -> {
 
-        for (int x = 0; x < 8; x++) {
-            for (int y = 0; y < 8; y++) {
+            myChessModell.newGame();
+            uciController.startNewGame((int) computerSkill);
+
+            uciController.go();
+            textArea.appendText("Neues Spiel, Computer spielt: " + compColor + "\n");
+        });
+
+        uciController.lastLineFromEngineProperty().addListener((ov, old, newValue) -> {
+            Platform.runLater(() -> {
+                //textArea.appendText(newValue + "\n");
+
+                Scanner myscanner = new Scanner(newValue);
+                if (myscanner.hasNext()) {
+                    String word = myscanner.next();
+                    if (word.equals("bestmove")) {
+                        String sugMove = myscanner.next();
+                        System.out.println("suggested move " + sugMove);
+                        if (sugMove.equals("(none)")) {
+                            textArea.appendText("Computer kann nicht ziehen oder ist Schach matt" + "\n");
+                        } else {
+                            String startPos, endPos;
+                            startPos = myChessModell.getFieldID(sugMove.charAt(0), sugMove.charAt(1));
+                            endPos = myChessModell.getFieldID(sugMove.charAt(2), sugMove.charAt(3));
+                            String fen = myChessModell.getFENString(startPos, endPos);
+                            boolean moveFigure = myChessModell.moveFigure(startPos, endPos, !humanIsWhite);
+                            if (moveFigure) { // move was accepted 
+                                textArea.appendText("Computer zieht: " + sugMove + "\n");
+                            } //nothing todo
+                            //send command to chess engine
+                         /*   uciController.positionMoves(fen,
+                             "w", myChessModell.getCastlingPossibilities(),
+                             myChessModell.getEnpassant(), 
+                             myChessModell.getHalfeMoveNr(),
+                             myChessModell.getMoveNr("w"),sugMove);
+                             }*/
+                            System.out.println("Move of chessComputer from " + sugMove
+                                    + " = " + startPos + " to " + endPos + " was " + moveFigure);
+                        }
+                    } else if (word.equals("uciok")) {
+                        textArea.appendText("Computer ist bereit" + "\n");
+                    }
+
+                }
+            });
+        });
+        VBox box = new VBox(textArea, c, slider, b);
+        root.setBottom(box);
+        Scene scene = new Scene(root, width * 8.5, heigth * 8.5);
+        chessboardContainer.getStylesheets().add(this.getClass().getResource("chess.css").toExternalForm());
+        for (int col = 0; col < 8; col++) {
+            Rectangle brectangle = new Rectangle(heigth / 2, width / 2);
+            brectangle.setLayoutX(width / 2);
+            brectangle.setLayoutY(brectangle.getHeight() * col + heigth / 2);
+            brectangle.widthProperty().bind(Bindings.divide(chessboardContainer.widthProperty(), 8.5));
+            brectangle.heightProperty().bind(Bindings.divide(chessboardContainer.heightProperty(), 16.5));
+            brectangle.getStyleClass().add("board");
+            StackPane bstackPane = new StackPane(brectangle);
+            bstackPane.getStyleClass().add("borderWrapper");
+            bstackPane.layoutXProperty().bind(Bindings.add(Bindings.multiply(col, Bindings.divide(chessboardContainer.widthProperty(), 8.5)), width / 2));
+            bstackPane.layoutYProperty().bind(Bindings.add(Bindings.multiply(8, Bindings.divide(chessboardContainer.heightProperty(), 8.5)), 0));
+            final Label nr = new Label();
+            nr.textProperty().setValue(Character.toString((char) (col + 'A')));
+
+            nr.getStyleClass().add("boardtext");
+            bstackPane.getChildren().add(nr);
+            chessboardContainer.getChildren().add(bstackPane);
+            bstackPane.rotateProperty().bind(chessboardContainer.rotateProperty().negate());
+        }
+        for (int row = 0; row < 8; row++) {
+            Rectangle brectangle = new Rectangle(heigth / 2, width / 2);
+            brectangle.setLayoutX(brectangle.getWidth() * row + width / 2);
+            brectangle.setLayoutY(heigth / 2);
+            brectangle.widthProperty().bind(Bindings.divide(chessboardContainer.widthProperty(), 16.5));
+            brectangle.heightProperty().bind(Bindings.divide(chessboardContainer.heightProperty(), 8.5));
+            brectangle.getStyleClass().add("board");
+            StackPane bstackPane = new StackPane(brectangle);
+            bstackPane.getStyleClass().add("borderWrapper");
+            bstackPane.layoutXProperty().bind(Bindings.add(Bindings.multiply(0, Bindings.divide(chessboardContainer.widthProperty(), 8.5)), 0));
+            bstackPane.layoutYProperty().bind(Bindings.add(Bindings.multiply(row, Bindings.divide(chessboardContainer.heightProperty(), 8.5)), 0));
+            final Label nr = new Label();
+            nr.textProperty().setValue(Integer.toString(8 - row));
+
+            nr.getStyleClass().add("boardtext");
+            bstackPane.getChildren().add(nr);
+            chessboardContainer.getChildren().add(bstackPane);
+            bstackPane.rotateProperty().bind(chessboardContainer.rotateProperty().negate());
+            for (int col = 0; col < 8; col++) {
                 Rectangle rectangle = new Rectangle(heigth, width);
-                rectangle.setLayoutX(rectangle.getWidth() * x);
-                rectangle.setLayoutY(rectangle.getHeight() * y);
-                if ((x + 1 * y + 1) % 2 == 0)  {
+                rectangle.setLayoutX(rectangle.getWidth() * row + width / 2);
+                rectangle.setLayoutY(rectangle.getHeight() * col + heigth / 2);
+                if ((row + 1 * col + 1) % 2 == 0) {
                     rectangle.getStyleClass().add("black");
                     rectangle.getStyleClass().add("field");
                 } else {
@@ -137,31 +209,63 @@ public class ChessUIFX extends Application {
                     rectangle.getStyleClass().add("field");
                 }
 
-                rectangle.widthProperty().bind(Bindings.divide(chessboardContainer.widthProperty(), 8d));
-                rectangle.heightProperty().bind(Bindings.divide(chessboardContainer.heightProperty(), 8d));
-               
+                rectangle.widthProperty().bind(Bindings.divide(chessboardContainer.widthProperty(), 8.5));
+                rectangle.heightProperty().bind(Bindings.divide(chessboardContainer.heightProperty(), 8.5));
+
                 StackPane stackPane = new StackPane(rectangle);
                 stackPane.getStyleClass().add("fieldWrapper");
-                
-                stackPane.layoutXProperty().bind(Bindings.multiply(x, Bindings.divide(chessboardContainer.widthProperty(), 8d)));
-                stackPane.layoutYProperty().bind(Bindings.multiply(y, Bindings.divide(chessboardContainer.heightProperty(), 8d)));
+                Integer myrow = 7 - row;
+                Integer mycol = col;
 
-                //find Figure
-                String figure = figures.get(x + 8 * y);
-                if (null != figure) {
-                    final Label piece = new Label(figure);
-                    piece.getStyleClass().add("piece");
+                stackPane.setId(myrow.toString() + mycol.toString());
+                stackPane.layoutXProperty().bind(Bindings.add(Bindings.multiply(col, Bindings.divide(chessboardContainer.widthProperty(), 8.5)), width / 2));
+                stackPane.layoutYProperty().bind(Bindings.add(Bindings.multiply(row, Bindings.divide(chessboardContainer.heightProperty(), 8.5)), 0));
+                stackPane.setOnMouseClicked(e -> {
+                    StackPane myfield = (StackPane) e.getSource();
+                    System.out.println("field " + myfield.getId() + " clicked");
+                    // store figure
+                    lastClickedField = myfield.getId();
+                    if (!lastClickedField.equals(lastClickedFigure)) {
+                        if (myChessModell.moveFigure(lastClickedFigure, lastClickedField, humanIsWhite)) { //move is valid
+                            String fen = myChessModell.getFENString(lastClickedFigure,
+                                    lastClickedField);
+                            uciController.positionMoves(fen,
+                                    compColor, myChessModell.getCastlingPossibilities(),
+                                    myChessModell.getEnpassant(),
+                                    myChessModell.getHalfeMoveNr(),
+                                    myChessModell.getMoveNr("b"),
+                                    myChessModell.getBoardField(lastClickedFigure)
+                                    + myChessModell.getBoardField(lastClickedField));
+                            lastClickedField = "11";
+                            lastClickedFigure = "11";
 
-                    piece.setOnMouseClicked(e -> {
-                        RotateTransition rotateTransition = new RotateTransition(Duration.seconds(3), piece);
-                        rotateTransition.setFromAngle(0d);
-                        rotateTransition.setByAngle(360d);
-                        rotateTransition.play();
-                    });
+                        }
+                    }
+                });
+                //find Figure by setting id to String <rowcol>
+                //String figure = myChessModell.get(row,col);    
+                //if (null != figure) {
+                final Label piece = new Label();
+                piece.textProperty().bind(myChessModell.getProp(7 - row, col));
 
-                    stackPane.getChildren().add(piece);
-                    stackPane.rotateProperty().bind(chessboardContainer.rotateProperty().negate());
-                }
+                piece.setId(myrow.toString() + mycol.toString());
+                piece.getStyleClass().add("piece");
+
+                piece.setOnMouseClicked(e -> {
+                    RotateTransition rotateTransition = new RotateTransition(Duration.seconds(3), piece);
+                    rotateTransition.setFromAngle(0d);
+                    rotateTransition.setByAngle(360d);
+                    rotateTransition.play();
+
+                    Label mypiece = (Label) e.getSource();
+                    System.out.println("figure " + mypiece.getId() + " clicked");
+                    // store figure
+                    lastClickedFigure = mypiece.getId();
+                });
+
+                stackPane.getChildren().add(piece);
+                stackPane.rotateProperty().bind(chessboardContainer.rotateProperty().negate());
+                //}
 
                 chessboardContainer.getChildren().add(stackPane);
             }
@@ -170,21 +274,21 @@ public class ChessUIFX extends Application {
         MenuBar bar = new MenuBar();
         Menu menu = new Menu("Actions");
         MenuItem rotateBoard = new MenuItem("Rotate board");
-        rotateBoard.setOnAction(e -> chessboardContainer.rotateProperty().set(chessboardContainer.rotateProperty().get()+180));
-        
+        rotateBoard.setOnAction(e -> chessboardContainer.rotateProperty().set(chessboardContainer.rotateProperty().get() + 180));
+
         MenuItem scenicView = new MenuItem("ScenicView");
         scenicView.setOnAction(e -> ScenicView.show(scene));
 
         menu.getItems().addAll(rotateBoard, scenicView);
 
         bar.getMenus().add(menu);
-        
+
         bar.setUseSystemMenuBar(false);
         root.setTop(bar);
         primaryStage.setTitle("JUG Bodensee ChessUIFX");
         primaryStage.setScene(scene);
         primaryStage.show();
-        uciController.init();        
+        uciController.init();
     }
 
     /**

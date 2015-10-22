@@ -24,7 +24,7 @@
 }
 
 .board {
-    -fx-fill: repeating-image-pattern("/org/jug/bodensee/seamless-wood.jpg");
+    -fx-fill: repeating-image-pattern("/org/jug/bodensee/wood.jpg");
     /*-fx-background-image: url("seamless-wood.jpg")*/
 }
 
@@ -33,10 +33,10 @@
     /*-fx-background-repeat: url("seamless-wood.jpg");*/
     /*-fx-background-position: center;*/
     /*-fx-background-repeat: stretch;*/
-    -fx-fill: repeating-image-pattern("/org/jug/bodensee/seamless-wood.jpg");//derive(BLACK, 80%);
-/*    -fx-stroke: BLACK;//derive(-fx-fill, 20%);
-    -fx-stroke-width: 10;*/
-    /*-fx-fill: linear-gradient(from 0% 0% to 100% 100%, black 0%, white 80%)*/
+   // -fx-fill: repeating-image-pattern("/org/jug/bodensee/seamless-wood.jpg");//derive(BLACK, 80%);
+    //-fx-stroke: BLACK;//derive(-fx-fill, 20%);
+    -fx-stroke-width: 10;
+    -fx-fill: linear-gradient(from 0% 0% to 100% 100%, black 0%, white 80%);
 }
 
 .white {
@@ -47,6 +47,13 @@
 .piece {
     -fx-font-family: "Medieval"; 
     -fx-font-size: 40;
+    -fx-stroke-width: 5;
+}
+
+.boardtext {
+    -fx-font-family: "Medieval"; 
+    -fx-font-size: 30;
+    -fx-stroke-width: 5;
 }
 
 .text {
